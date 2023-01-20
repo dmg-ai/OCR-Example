@@ -1,4 +1,4 @@
-### Пример OCR с использованием CTC Loss
+# Пример OCR с использованием CTC Loss
 
 ## Overview
 
