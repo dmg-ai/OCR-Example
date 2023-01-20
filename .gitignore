@@ -211,3 +211,8 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+*.ipynb*
+EMNIST
+*.pt
+*.pth
+.DS*

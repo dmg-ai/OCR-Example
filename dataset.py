@@ -17,17 +17,17 @@ class CapchaDataset(Dataset):
         self,
         seq_len: Union[int, Tuple[int, int]],
         img_h: int = 28,
-        split: str = "digits",
+        split: str = "balanced",
         samples: int = None,
     ):
-        self.emnist_dataset = datasets.EMNIST(
-            "./EMNIST", split=split, train=True, download=True
-        )
+        self.emnist_dataset = datasets.EMNIST("./EMNIST", split=split, train=True, download=True)
         self.seq_len = seq_len
         self.blank_label = len(self.emnist_dataset.classes)
+        self.blank_token = '-'
         self.img_h = img_h
         self.samples = samples
-        self.num_classes = len(self.emnist_dataset.classes) + 1
+        self.classes = self.emnist_dataset.classes + [self.blank_token]
+        self.num_classes = len(self.classes)
         if isinstance(seq_len, int):
             self._min_seq_len = seq_len
             self._max_seq_len = seq_len
@@ -46,7 +46,7 @@ class CapchaDataset(Dataset):
         """
         if self.samples is not None:
             return self.samples
-        return len(self.emnist_dataset.classes) ** self._max_seq_len
+        return len(self.classes) ** self._max_seq_len
 
     def __preprocess(self, random_images: torch.Tensor) -> np.ndarray:
         transformed_images = []
@@ -57,12 +57,8 @@ class CapchaDataset(Dataset):
             img = transforms.ToTensor()(img).numpy()
             transformed_images.append(img)
         images = np.array(transformed_images)
-        images = np.hstack(
-            images.reshape((len(transformed_images), self.img_h, self.img_h))
-        )
-        full_img = np.zeros(shape=(self.img_h, self._max_seq_len * self.img_h)).astype(
-            np.float32
-        )
+        images = np.hstack(images.reshape((len(transformed_images), self.img_h, self.img_h)))
+        full_img = np.zeros(shape=(self.img_h, self._max_seq_len * self.img_h)).astype(np.float32)
         full_img[:, 0 : images.shape[1]] = images
         return full_img
 
@@ -70,9 +66,7 @@ class CapchaDataset(Dataset):
         # Get random seq_len
         random_seq_len = np.random.randint(self._min_seq_len, self._max_seq_len + 1)
         # Get random ind
-        random_indices = np.random.randint(
-            len(self.emnist_dataset.data), size=(random_seq_len,)
-        )
+        random_indices = np.random.randint(len(self.emnist_dataset.data), size=(random_seq_len,))
         random_images = self.emnist_dataset.data[random_indices]
         random_digits_labels = self.emnist_dataset.targets[random_indices]
         labels = torch.zeros((1, self._max_seq_len))
@@ -87,10 +81,12 @@ if __name__ == "__main__":
     # от 3 до 5 символов
     ds = CapchaDataset((3, 5))
     data_loader = torch.utils.data.DataLoader(ds, batch_size=2)
+
     for i, (x_batch, y_batch) in enumerate(data_loader):
-        print(i)
         for img, label in zip(x_batch, y_batch):
             plt.imshow(img)
-            title = [str(n) for n in label.numpy()]
-            plt.title("".join(title))
+            title = [ds.emnist_dataset.classes[int(n)] for n in label.numpy() if int(n)!=ds.blank_label]
+            plt.title(" ".join(title))
+            plt.savefig(f"./output/{''.join(title)}.png")
             plt.show()
+        break
